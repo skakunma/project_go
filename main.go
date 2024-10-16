@@ -36,7 +36,7 @@ type PutCats struct {
 
 func Get_cats(c *fiber.Ctx) error {
 	//Обработка get запроса
-	return c.JSON(Cats)
+	return c.Status(200).JSON(Cats)
 }
 
 func Get_cat(c *fiber.Ctx) error {
@@ -45,7 +45,10 @@ func Get_cat(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(Cats[id])
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"id":   id,
+		"name": Cats[id],
+	})
 }
 
 func Delete_cat(c *fiber.Ctx) error {
@@ -55,7 +58,7 @@ func Delete_cat(c *fiber.Ctx) error {
 		return err
 	}
 	delete(Cats, id)
-	return c.JSON(Cats)
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func Create_cat(c *fiber.Ctx) error {
