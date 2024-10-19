@@ -16,10 +16,10 @@ var Users = map[string]string{
 	"admin@mail.ru": "admin",
 }
 
-var Cats = map[int]string{
-	1: "Бенгал",
-	2: "Британская",
-	3: "Сиамская",
+var Cats = map[int]map[string]string{
+	1: {"name": "Бенгал", "author": "admin@mail.ru"},
+	2: {"name": "Британская", "author": "admin@mail.ru"},
+	3: {"name": "Сиамская", "author": "admin@mail.ru"},
 }
 
 func main() {
@@ -71,7 +71,7 @@ func Register(c *fiber.Ctx) error {
 	})
 }
 
-func validateToken(tokenString string) (jwt.Claims, error) {
+func validateToken(tokenString string) (interface{}, error) {
 	// Парсинг и проверка подписи
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Проверяем метод подписи
@@ -86,9 +86,15 @@ func validateToken(tokenString string) (jwt.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
+	sub := token.Claims.(jwt.MapClaims)["sub"]
+	_, exist := Users[sub.(string)]
+	if !exist {
+		return nil, fmt.Errorf("invalid token")
+	}
+
 	// Проверяем валидность токена
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		return claims, nil
+	if _, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		return sub.(string), nil
 	} else {
 		return nil, fmt.Errorf("invalid token")
 	}
@@ -133,17 +139,10 @@ func sign_in(c *fiber.Ctx) error {
 func Get_cats(c *fiber.Ctx) error {
 	//Обработка get запроса
 	tokenString := c.Get("Authorization")[7:]
-	claims, err := validateToken(tokenString)
+	_, err := validateToken(tokenString)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
-		})
-	}
-	sub := claims.(jwt.MapClaims)["sub"]
-	_, exist := Users[sub.(string)]
-	if !exist {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Неверные данные",
 		})
 	}
 	return c.Status(fiber.StatusOK).JSON(Cats)
@@ -163,9 +162,21 @@ func Get_cat(c *fiber.Ctx) error {
 
 func Delete_cat(c *fiber.Ctx) error {
 	//Обработка delete запроса по id
+	tokenString := c.Get("Authorization")[7:]
+	email, err := validateToken(tokenString)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return err
+	}
+	if Cats[id]["author"] != email {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "You are is not author",
+		})
 	}
 	delete(Cats, id)
 	return c.SendStatus(fiber.StatusNoContent)
@@ -184,15 +195,28 @@ func Create_cat(c *fiber.Ctx) error {
 			"error": "Cat with this ID already exists",
 		})
 	}
-	Cats[cat.Id] = cat.Name
+
+	Cats[cat.Id]["name"] = cat.Name
 	return c.Status(fiber.StatusCreated).JSON(cat)
 }
 
 func PutCat(c *fiber.Ctx) error {
 	//Обработка put запроса по id
+	tokenString := c.Get("Authorization")[7:]
+	email, err := validateToken(tokenString)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return err
+	}
+	if Cats[id]["author"] != email {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "You are is not author",
+		})
 	}
 	cat := new(PutCats)
 	if err := c.BodyParser(cat); err != nil {
@@ -205,6 +229,6 @@ func PutCat(c *fiber.Ctx) error {
 			"error": "Cat with this ID does not exists",
 		})
 	}
-	Cats[id] = cat.Name
+	Cats[id]["name"] = cat.Name
 	return c.Status(fiber.StatusCreated).JSON(cat)
 }
