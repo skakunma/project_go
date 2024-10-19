@@ -86,7 +86,6 @@ func validateToken(tokenString string) (jwt.Claims, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	// Проверяем валидность токена
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		return claims, nil
@@ -98,7 +97,7 @@ func validateToken(tokenString string) (jwt.Claims, error) {
 func create_jwt(email string) string {
 	payload := jwt.MapClaims{
 		"sub": email,
-		"exp": time.Now().Add(time.Hour * 72).Unix(),
+		"exp": time.Now().Add(time.Second * 360).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
 
@@ -140,7 +139,13 @@ func Get_cats(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
-	fmt.Println(claims)
+	sub := claims.(jwt.MapClaims)["sub"]
+	_, exist := Users[sub.(string)]
+	if !exist {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Неверные данные",
+		})
+	}
 	return c.Status(fiber.StatusOK).JSON(Cats)
 }
 
