@@ -185,6 +185,13 @@ func Delete_cat(c *fiber.Ctx) error {
 func Create_cat(c *fiber.Ctx) error {
 	//Обработка post запроса
 	cat := new(Cat)
+	tokenString := c.Get("Authorization")[7:]
+	email, err := validateToken(tokenString)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
 	if err := c.BodyParser(cat); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid input",
@@ -195,7 +202,13 @@ func Create_cat(c *fiber.Ctx) error {
 			"error": "Cat with this ID already exists",
 		})
 	}
+	if Cats[cat.Id] == nil {
+		Cats[cat.Id] = make(map[string]string)
+	}
 
+	if email != nil {
+		Cats[cat.Id]["author"] = email.(string)
+	}
 	Cats[cat.Id]["name"] = cat.Name
 	return c.Status(fiber.StatusCreated).JSON(cat)
 }
