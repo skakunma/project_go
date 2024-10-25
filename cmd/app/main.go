@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/sirupsen/logrus"
+	"github.com/joho/godotenv"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -23,6 +24,7 @@ var Cats = map[int]map[string]string{
 }
 
 func main() {
+	godotenv.Load(".env")
 	app := fiber.New()
 	publicGroup := app.Group("")
 	publicGroup.Get("/cats/", GetCats)
@@ -32,7 +34,12 @@ func main() {
 	publicGroup.Put("/cat/:id", PutCat)
 	publicGroup.Post("/register/", Register)
 	publicGroup.Post("/signin/", SignIn)
-	logrus.Fatal(app.Listen(":8000"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		log.Fatal("PORT environment variable not set")
+	}
+
+	log.Fatal(app.Listen(":" + port))
 }
 
 type Cat struct {
@@ -128,7 +135,7 @@ func SignIn(c *fiber.Ctx) error {
 			"error": "Не верый пароль.",
 		})
 	}
-	token := create_jwt(user.Email)
+	token := CreateJwt(user.Email)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"error": "None",
 		"token": token,
