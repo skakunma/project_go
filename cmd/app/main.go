@@ -25,13 +25,13 @@ var Cats = map[int]map[string]string{
 func main() {
 	app := fiber.New()
 	publicGroup := app.Group("")
-	publicGroup.Get("/cats/", Get_cats)
-	publicGroup.Get("/cat/:id", Get_cat)
-	publicGroup.Post("/cats/", Create_cat)
-	publicGroup.Delete("/cat/:id", Delete_cat)
+	publicGroup.Get("/cats/", GetCats)
+	publicGroup.Get("/cat/:id", GetCat)
+	publicGroup.Post("/cats/", CreateCat)
+	publicGroup.Delete("/cat/:id", DeleteCat)
 	publicGroup.Put("/cat/:id", PutCat)
 	publicGroup.Post("/register/", Register)
-	publicGroup.Post("/signin/", sign_in)
+	publicGroup.Post("/signin/", SignIn)
 	logrus.Fatal(app.Listen(":8000"))
 }
 
@@ -46,13 +46,13 @@ type PutCats struct {
 	Name string `json:"name"`
 }
 
-type Registerform struct {
+type RegisterForm struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 func Register(c *fiber.Ctx) error {
-	user := new(Registerform)
+	user := new(RegisterForm)
 	if err := c.BodyParser(user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -100,7 +100,7 @@ func validateToken(tokenString string) (interface{}, error) {
 	}
 }
 
-func create_jwt(email string) string {
+func CreateJwt(email string) string {
 	payload := jwt.MapClaims{
 		"sub": email,
 		"exp": time.Now().Add(time.Second * 360).Unix(),
@@ -115,8 +115,8 @@ func create_jwt(email string) string {
 
 }
 
-func sign_in(c *fiber.Ctx) error {
-	user := new(Registerform)
+func SignIn(c *fiber.Ctx) error {
+	user := new(RegisterForm)
 	if err := c.BodyParser(user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
@@ -136,7 +136,7 @@ func sign_in(c *fiber.Ctx) error {
 
 }
 
-func Get_cats(c *fiber.Ctx) error {
+func GetCats(c *fiber.Ctx) error {
 	//Обработка get запроса
 	tokenString := c.Get("Authorization")[7:]
 	_, err := validateToken(tokenString)
@@ -148,7 +148,7 @@ func Get_cats(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(Cats)
 }
 
-func Get_cat(c *fiber.Ctx) error {
+func GetCat(c *fiber.Ctx) error {
 	//Обработка get запроса по id
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
@@ -160,7 +160,7 @@ func Get_cat(c *fiber.Ctx) error {
 	})
 }
 
-func Delete_cat(c *fiber.Ctx) error {
+func DeleteCat(c *fiber.Ctx) error {
 	//Обработка delete запроса по id
 	tokenString := c.Get("Authorization")[7:]
 	email, err := validateToken(tokenString)
@@ -182,7 +182,7 @@ func Delete_cat(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func Create_cat(c *fiber.Ctx) error {
+func CreateCat(c *fiber.Ctx) error {
 	//Обработка post запроса
 	cat := new(Cat)
 	tokenString := c.Get("Authorization")[7:]
