@@ -24,6 +24,7 @@ var Cats = map[int]map[string]string{
 
 func main() {
 	app := fiber.New()
+	app.Use(JwtMiddleware)
 	publicGroup := app.Group("")
 	publicGroup.Get("/cats/", GetCats)
 	publicGroup.Get("/cat/:id", GetCat)
@@ -49,6 +50,41 @@ type PutCats struct {
 type RegisterForm struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+func JwtMiddleware(c *fiber.Ctx) error {
+	if c.Path() == "/register/" || c.Path() == "/signin/" {
+		return c.Next()
+	}
+	// Получаем заголовок Authorization
+	tokenString := c.Get("Authorization")
+
+	// Проверяем, что заголовок начинается с "Bearer "
+	if len(tokenString) < 8 || tokenString[:7] != "Bearer " {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Необходимо предоставить валидный JWT-токен",
+		})
+	}
+
+	// Извлекаем сам токен
+	tokenString = tokenString[7:]
+
+	// Парсим и проверяем токен
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Проверяем, что алгоритм токена соответствует ожидаемому
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fiber.NewError(fiber.StatusUnauthorized, "Неправильный метод подписи")
+		}
+		return jwtSecretKey, nil
+	})
+
+	if err != nil || !token.Valid {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Неправильный или просроченный JWT-токен",
+		})
+	}
+
+	return c.Next() // Передаем управление дальше, если токен валиден
 }
 
 func Register(c *fiber.Ctx) error {
@@ -79,22 +115,26 @@ func validateToken(tokenString string) (interface{}, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
-		// Возвращаем секретный ключ для проверки подписи
 		return jwtSecretKey, nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-	sub := token.Claims.(jwt.MapClaims)["sub"]
-	_, exist := Users[sub.(string)]
+
+	// Получаем email из токена
+	email, ok := token.Claims.(jwt.MapClaims)["email"].(string)
+	if !ok || email == "" {
+		return nil, fmt.Errorf("invalid or missing email in token")
+	}
+
+	_, exist := Users[email]
 	if !exist {
 		return nil, fmt.Errorf("invalid token")
 	}
 
-	// Проверяем валидность токена
 	if _, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		return sub.(string), nil
+		return email, nil
 	} else {
 		return nil, fmt.Errorf("invalid token")
 	}
@@ -123,12 +163,11 @@ func SignIn(c *fiber.Ctx) error {
 		})
 	}
 	if Users[user.Email] != user.Password {
-		fmt.Println(Users)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Не верый пароль.",
 		})
 	}
-	token := create_jwt(user.Email)
+	token := CreateJwt(user.Email)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"error": "None",
 		"token": token,
