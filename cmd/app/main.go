@@ -14,10 +14,25 @@ import (
 
 var jwtSecretKey = []byte(os.Getenv("JWT_SECRET_KEY"))
 
-var Cats = map[int]map[string]string{
-	1: {"name": "Бенгал", "author": "admin@mail.ru"},
-	2: {"name": "Британская", "author": "admin@mail.ru"},
-	3: {"name": "Сиамская", "author": "admin@mail.ru"},
+func main() {
+	Migrate(ConnDB())
+	app := fiber.New()
+	app.Use(JwtMiddleware)
+	publicGroup := app.Group("")
+	publicGroup.Get("/cats/", GetCats)
+	publicGroup.Get("/cat/:id", GetCat)
+	publicGroup.Post("/cats/", CreateCat)
+	publicGroup.Delete("/cat/:id", DeleteCat)
+	publicGroup.Put("/cat/:id", PutCat)
+	publicGroup.Post("/register/", Register)
+	publicGroup.Post("/signin/", SignIn)
+	publicGroup.Get("/user/:id", GetUser)
+	logrus.Fatal(app.Listen(":8000"))
+}
+
+type PutCats struct {
+	//Структура для поиска на put
+	Name string `json:"name"`
 }
 
 type User struct {
@@ -31,32 +46,6 @@ type CatsModel struct {
 	Name   string
 	Author uint
 	User   User `gorm:"foreignKey:Author;references:ID"`
-}
-
-func main() {
-	Migrate(ConnDB())
-	app := fiber.New()
-	app.Use(JwtMiddleware)
-	publicGroup := app.Group("")
-	publicGroup.Get("/cats/", GetCats)
-	publicGroup.Get("/cat/:id", GetCat)
-	publicGroup.Post("/cats/", CreateCat)
-	publicGroup.Delete("/cat/:id", DeleteCat)
-	publicGroup.Put("/cat/:id", PutCat)
-	publicGroup.Post("/register/", Register)
-	publicGroup.Post("/signin/", SignIn)
-	logrus.Fatal(app.Listen(":8000"))
-}
-
-type Cat struct {
-	//Структура для поиска на post
-	Name string `json:"name"`
-	Id   int    `json:"id"`
-}
-
-type PutCats struct {
-	//Структура для поиска на put
-	Name string `json:"name"`
 }
 
 func Migrate(db *gorm.DB) {
@@ -105,30 +94,6 @@ func JwtMiddleware(c *fiber.Ctx) error {
 	}
 
 	return c.Next() // Передаем управление дальше, если токен валиден
-}
-
-func Register(c *fiber.Ctx) error {
-	user := new(User)
-	if err := c.BodyParser(user); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": err.Error(),
-		})
-	}
-	var existingUser User
-	db := ConnDB()
-	result := db.Where("email = ?", user.Email).First(&existingUser)
-	fmt.Println(result.Error)
-	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": result.Error,
-		})
-	}
-
-	db.Create(&User{Email: user.Email, Password: user.Password})
-
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"error": "None",
-	})
 }
 
 func validateToken(tokenString string) (interface{}, error) {
@@ -181,6 +146,30 @@ func CreateJwt(email string) string {
 
 }
 
+func Register(c *fiber.Ctx) error {
+	user := new(User)
+	if err := c.BodyParser(user); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	var existingUser User
+	db := ConnDB()
+	result := db.Where("email = ?", user.Email).First(&existingUser)
+	fmt.Println(result.Error)
+	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": result.Error,
+		})
+	}
+
+	db.Create(&User{Email: user.Email, Password: user.Password})
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"error": "None",
+	})
+}
+
 func SignIn(c *fiber.Ctx) error {
 	user := new(User)
 	if err := c.BodyParser(user); err != nil {
@@ -212,6 +201,8 @@ func SignIn(c *fiber.Ctx) error {
 func GetCats(c *fiber.Ctx) error {
 	//Обработка get запроса
 	tokenString := c.Get("Authorization")[7:]
+	fmt.Println(tokenString)
+
 	_, err := validateToken(tokenString)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -284,7 +275,7 @@ func DeleteCat(c *fiber.Ctx) error {
 			"author": user.Email,
 		})
 	}
-	db.Delete(CatsModel{}, cat.ID)
+	db.Unscoped().Delete(CatsModel{}, cat.ID)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -390,5 +381,29 @@ func PutCat(c *fiber.Ctx) error {
 			"name":   cat.Name,
 			"author": cat.Author,
 		},
+	})
+}
+
+func GetUser(c *fiber.Ctx) error {
+	user := c.Params("id")
+	db := ConnDB()
+	var ProfileInfo User
+	var ProfileCats []CatsModel
+	result := db.Where("id = ?", user).First(&ProfileInfo)
+	if result.Error != nil && result.Error == gorm.ErrRecordNotFound {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "User not found",
+		})
+	}
+	result = db.Where("Author = ?", user).Pluck("name", &ProfileCats)
+	if result.Error != nil && result.Error == gorm.ErrRecordNotFound {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"email": ProfileInfo.Email,
+			"cats":  nil,
+		})
+	}
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"email": ProfileInfo.Email,
+		"cats":  ProfileCats,
 	})
 }
