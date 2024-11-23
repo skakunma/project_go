@@ -13,15 +13,6 @@ import (
 
 var jwtSecretKey = []byte(os.Getenv("JWT_SECRET_KEY"))
 
-var Users = map[string]string{
-	"admin@mail.ru": "admin",
-}
-
-var Cats = map[int]map[string]string{
-	1: {"name": "Бенгал", "author": "admin@mail.ru"},
-	2: {"name": "Британская", "author": "admin@mail.ru"},
-	3: {"name": "Сиамская", "author": "admin@mail.ru"},
-}
 
 func main() {
 	godotenv.Load(".env")
