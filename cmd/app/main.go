@@ -13,6 +13,18 @@ import (
 
 var jwtSecretKey = []byte(os.Getenv("JWT_SECRET_KEY"))
 
+type User struct {
+	gorm.Model
+	Email    string `gorm:"unique"`
+	Password string
+}
+
+type CatsModel struct {
+	gorm.Model
+	Name   string
+	Author uint
+	User   User `gorm:"foreignKey:Author;references:ID"`
+}
 
 func main() {
 	godotenv.Load(".env")
@@ -31,12 +43,6 @@ func main() {
 	}
 
 	log.Fatal(app.Listen(":" + port))
-}
-
-type Cat struct {
-	//Структура для поиска на post
-	Name string `json:"name"`
-	Id   int    `json:"id"`
 }
 
 type PutCats struct {
