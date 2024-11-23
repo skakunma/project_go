@@ -14,12 +14,6 @@ import (
 
 var jwtSecretKey = []byte(os.Getenv("JWT_SECRET_KEY"))
 
-var Cats = map[int]map[string]string{
-	1: {"name": "Бенгал", "author": "admin@mail.ru"},
-	2: {"name": "Британская", "author": "admin@mail.ru"},
-	3: {"name": "Сиамская", "author": "admin@mail.ru"},
-}
-
 type User struct {
 	gorm.Model
 	Email    string `gorm:"unique"`
@@ -46,12 +40,6 @@ func main() {
 	publicGroup.Post("/register/", Register)
 	publicGroup.Post("/signin/", SignIn)
 	logrus.Fatal(app.Listen(":8000"))
-}
-
-type Cat struct {
-	//Структура для поиска на post
-	Name string `json:"name"`
-	Id   int    `json:"id"`
 }
 
 type PutCats struct {
